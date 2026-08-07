@@ -1,0 +1,8 @@
+## Build & Binary Artifacts
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+*.log
