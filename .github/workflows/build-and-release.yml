@@ -1,0 +1,80 @@
+name: Build & Release ModelStudio IDE
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: win-x64
+            artifact_name: ModelStudio-v1.0.0-Windows-x64.zip
+          - os: ubuntu-latest
+            target: linux-x64
+            artifact_name: model-studio-ide_1.0.0_amd64.deb
+          - os: macos-latest
+            target: osx-arm64
+            artifact_name: ModelStudio-v1.0.0-macOS-arm64.zip
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build & Publish Single-File Binary
+        run: |
+          dotnet publish ModelStudio.Core/ModelStudio.Core.csproj -c Release -r ${{ matrix.target }} --self-contained true -p:PublishSingleFile=true -o publish/${{ matrix.target }}
+
+      - name: Package macOS Build (.zip)
+        if: matrix.target == 'osx-arm64'
+        run: |
+          mkdir -p publish/macOS
+          cp publish/osx-arm64/ModelStudio.Core publish/macOS/model-studio-ide
+          cd publish && zip -r ../ModelStudio-v1.0.0-macOS-arm64.zip macOS/
+
+      - name: Package Windows Build (.zip)
+        if: matrix.target == 'win-x64'
+        run: |
+          Compress-Archive -Path publish/win-x64/* -DestinationPath ModelStudio-v1.0.0-Windows-x64.zip -Force
+        shell: pwsh
+
+      - name: Package Linux Build (.deb)
+        if: matrix.target == 'linux-x64'
+        run: |
+          mkdir -p debian_pkg/DEBIAN debian_pkg/usr/bin debian_pkg/usr/share/applications
+          cp publish/linux-x64/ModelStudio.Core debian_pkg/usr/bin/model-studio-ide
+          chmod +x debian_pkg/usr/bin/model-studio-ide
+          cat << 'EOF' > debian_pkg/DEBIAN/control
+          Package: model-studio-ide
+          Version: 1.0.0
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: ash-forge <admin@ash-forge.com>
+          Description: ModelStudio IDE - Visual Model & GGUF Precision Tuner
+          EOF
+          dpkg-deb --build debian_pkg model-studio-ide_1.0.0_amd64.deb
+
+      - name: Upload Artifacts to Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            *.zip
+            *.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
