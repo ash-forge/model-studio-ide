@@ -1,6 +1,18 @@
+## Project Metadata & Guardrails
+.agy
+
 ## Build & Binary Artifacts
 bin/
 obj/
+[B|b]in/
+[O|o]bj/
+Debug/
+Release/
+x64/
+x86/
+ARM64/
+
+## User & IDE Artifacts
 *.user
 *.suo
 .vs/
