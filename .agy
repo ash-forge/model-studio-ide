@@ -1,0 +1,9 @@
+# .agy Blueprint & Guardrails for ModelStudio IDE
+ProjectName: ModelStudio IDE
+Repository: ash-forge/model-studio-ide
+Architecture: C# .NET 10 WPF Desktop & Core Binary Parsing Engine
+CoreCapability: Zero-copy memory mapped GGUF/SafeTensors/ONNX/TFLite visual IDE and precision tuner
+Guardrails:
+- Cross-platform C# code targeting Windows, Linux, and macOS
+- Zero hardcoded local file paths or machine-specific drive letters
+- Sub-309ms binary header parsing using MemoryMappedFile
