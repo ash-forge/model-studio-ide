@@ -77,6 +77,9 @@ public partial class MainWindow : Window
         ViewInfer.Visibility = Visibility.Collapsed;
         ViewDiff.Visibility = Visibility.Collapsed;
         ViewVram.Visibility = Visibility.Collapsed;
+        ViewArchGraph.Visibility = Visibility.Collapsed;
+        ViewProfiler.Visibility = Visibility.Collapsed;
+        ViewBrowser.Visibility = Visibility.Collapsed;
 
         // Reset nav button backgrounds
         NavTensors.Background = System.Windows.Media.Brushes.Transparent;
@@ -91,6 +94,9 @@ public partial class MainWindow : Window
         NavInfer.Background = System.Windows.Media.Brushes.Transparent;
         NavDiff.Background = System.Windows.Media.Brushes.Transparent;
         NavVram.Background = System.Windows.Media.Brushes.Transparent;
+        NavArchGraph.Background = System.Windows.Media.Brushes.Transparent;
+        NavProfiler.Background = System.Windows.Media.Brushes.Transparent;
+        NavBrowser.Background = System.Windows.Media.Brushes.Transparent;
 
         // Reset text colors
         var grayBrush = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#9CA3AF"));
@@ -106,6 +112,9 @@ public partial class MainWindow : Window
         NavInfer.Foreground = grayBrush;
         NavDiff.Foreground = grayBrush;
         NavVram.Foreground = grayBrush;
+        NavArchGraph.Foreground = grayBrush;
+        NavProfiler.Foreground = grayBrush;
+        NavBrowser.Foreground = grayBrush;
 
         // Show selected view & highlight button
         var accentBrush = (System.Windows.Media.Brush)FindResource("BrushPrimaryAccent");
@@ -126,6 +135,9 @@ public partial class MainWindow : Window
             case 9: ViewInfer.Visibility = Visibility.Visible; break;
             case 10: ViewDiff.Visibility = Visibility.Visible; break;
             case 11: ViewVram.Visibility = Visibility.Visible; break;
+            case 12: ViewArchGraph.Visibility = Visibility.Visible; break;
+            case 13: ViewProfiler.Visibility = Visibility.Visible; break;
+            case 14: ViewBrowser.Visibility = Visibility.Visible; break;
         }
 
         var navText = (btn.Content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault()?.Text ?? "Workspace";
@@ -710,5 +722,118 @@ public partial class MainWindow : Window
             $"2. Recommended VRAM for Full 32k Context: {est.ModelWeightsGb + est.KvCache32kGb + 1.5:F1} GB\n" +
             $"3. Extreme 128k Context VRAM Requirement: {est.ModelWeightsGb + est.KvCache128kGb + 2.0:F1} GB\n\n" +
             $"Deep Horizon Hardware Recommendation: A single Deep Horizon Node (16GB/32GB Unified Memory) runs this model locally with zero offload bottleneck!";
+    }
+
+    private void BtnRenderArchGraph_Click(object sender, RoutedEventArgs e)
+    {
+        if (_allTensors == null || _allTensors.Count == 0)
+        {
+            MessageBox.Show("Please load a model file first.", "No Tensors Loaded", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        CanvasArchNodes.Children.Clear();
+        double x = 20;
+        double y = 80;
+
+        DrawCanvasNode(CanvasArchNodes, "Token Embedding", "FP16 (Subword Vocab)", System.Windows.Media.Brushes.Magenta, x, y);
+        x += 210;
+
+        int count = Math.Min(8, _allTensors.Count);
+        for (int i = 0; i < count; i++)
+        {
+            var t = _allTensors[i];
+            var color = t.Type == GgmlType.IQ4_XS ? System.Windows.Media.Brushes.LimeGreen :
+                        t.Type == GgmlType.Q6_K ? System.Windows.Media.Brushes.Cyan : System.Windows.Media.Brushes.Orange;
+
+            DrawCanvasNode(CanvasArchNodes, $"Block {i}", $"{t.Type} ({t.DimensionString})", color, x, y);
+            x += 210;
+        }
+
+        DrawCanvasNode(CanvasArchNodes, "LM Head / Norm", "RMSNorm + Output", System.Windows.Media.Brushes.LimeGreen, x, y);
+        TxtStatus.Text = $"Rendered 2D Architecture Canvas for {_allTensors.Count:N0} layer tensors";
+    }
+
+    private void DrawCanvasNode(Canvas canvas, string title, string subtitle, System.Windows.Media.Brush borderBrush, double x, double y)
+    {
+        var border = new Border
+        {
+            Width = 180,
+            Height = 100,
+            Background = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#161C28")),
+            BorderBrush = borderBrush,
+            BorderThickness = new Thickness(2),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(10)
+        };
+
+        var sp = new StackPanel();
+        sp.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.Bold, Foreground = System.Windows.Media.Brushes.White, FontSize = 13 });
+        sp.Children.Add(new TextBlock { Text = subtitle, Foreground = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#9CA3AF")), FontSize = 11, Margin = new Thickness(0, 6, 0, 0) });
+        border.Child = sp;
+
+        Canvas.SetLeft(border, x);
+        Canvas.SetTop(border, y);
+        canvas.Children.Add(border);
+    }
+
+    private void BtnRunProfiler_Click(object sender, RoutedEventArgs e)
+    {
+        if (_allTensors == null || _allTensors.Count == 0)
+        {
+            MessageBox.Show("Please load a model file first.", "No Model Loaded", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        double bw = double.TryParse(EditProfilerBandwidth.Text, out var parsedBw) ? parsedBw : 200.0;
+        var profile = LayerProfiler.ProfileModelLayers(_allTensors, bw);
+        GridProfilerResults.ItemsSource = profile;
+        TxtStatus.Text = $"Profiled {_allTensors.Count:N0} layers at {bw} GB/s bandwidth saturation";
+    }
+
+    private async void BtnSearchHf_Click(object sender, RoutedEventArgs e)
+    {
+        var q = EditHfSearchQuery.Text?.Trim() ?? "gguf";
+        TxtStatus.Text = $"Searching HuggingFace Hub for '{q}'...";
+        var results = await HfModelBrowser.SearchModelsAsync(q);
+        GridHfSearchResults.ItemsSource = results;
+        TxtStatus.Text = $"Found {results.Count} models on HuggingFace Hub";
+    }
+
+    private void GridHfSearchResults_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (GridHfSearchResults.SelectedItem is HfModelSearchResult item)
+        {
+            TxtSelectedHfRepo.Text = $"Repository: {item.RepoId}";
+            EditGgufDirectUrl.Text = $"https://huggingface.co/{item.RepoId}/resolve/main/{item.ModelName}.gguf";
+        }
+    }
+
+    private async void BtnStartDownload_Click(object sender, RoutedEventArgs e)
+    {
+        var url = EditGgufDirectUrl.Text?.Trim();
+        if (string.IsNullOrEmpty(url))
+        {
+            MessageBox.Show("Please enter a direct GGUF model download URL.", "Invalid URL", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var fileName = Path.GetFileName(url);
+        var savePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", fileName);
+
+        TxtDownloadStatus.Text = $"Downloading {fileName}...";
+        TxtStatus.Text = $"Downloading GGUF model file from HuggingFace...";
+
+        var (success, msg) = await HfModelBrowser.DownloadGgufFileAsync(url, savePath, (pct) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                ProgDownload.Value = pct;
+                TxtDownloadStatus.Text = $"Downloading... {pct:F1}% complete";
+            });
+        });
+
+        TxtDownloadStatus.Text = msg;
+        MessageBox.Show(msg, success ? "Download Complete" : "Download Failed", MessageBoxButton.OK, success ? MessageBoxImage.Information : MessageBoxImage.Error);
     }
 }

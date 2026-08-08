@@ -80,6 +80,20 @@ public class GgufTensorInfo
     }
 
     public string DimensionString => string.Join(" × ", Dimensions);
+
+    public ulong EstimatedSizeBytes
+    {
+        get
+        {
+            double bits = Type == GgmlType.F32 ? 32.0 :
+                         Type == GgmlType.F16 || Type == GgmlType.BF16 ? 16.0 :
+                         Type == GgmlType.Q8_0 || Type == GgmlType.Q8_K ? 8.5 :
+                         Type == GgmlType.Q6_K ? 6.56 :
+                         Type == GgmlType.Q4_K || Type == GgmlType.Q4_0 ? 4.5 :
+                         Type == GgmlType.IQ4_XS ? 4.25 : 4.5;
+            return (ulong)((TotalElements * bits) / 8.0);
+        }
+    }
 }
 
 public class GgufReader
