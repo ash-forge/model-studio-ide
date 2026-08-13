@@ -50,8 +50,7 @@ public class GgufWriter
             targetWriter.Write((byte)0);
         }
 
-        // 5. Copy raw tensor binary payload from source file if offset is known
-        // (Fast streaming copy of remaining tensor binary data)
+        // 5. Fast streaming copy of raw tensor binary payload from source file
         sourceFs.Seek(header.Tensors.Count > 0 ? (long)header.Tensors[0].Offset : currentPos, SeekOrigin.Begin);
         sourceFs.CopyTo(targetFs);
 
@@ -117,9 +116,74 @@ public class GgufWriter
                 writer.Write((uint)GgufValueType.Float64);
                 writer.Write(d);
                 break;
+            case List<object> listObj:
+                WriteGgufArray(writer, listObj);
+                break;
+            case string[] strArray:
+                WriteGgufArray(writer, new List<object>(strArray));
+                break;
+            case List<string> strList:
+                WriteGgufArray(writer, strList.ConvertAll(s => (object)s));
+                break;
             default:
                 writer.Write((uint)GgufValueType.String);
                 WriteGgufString(writer, value?.ToString() ?? "");
+                break;
+        }
+    }
+
+    private static void WriteGgufArray(BinaryWriter writer, List<object> list)
+    {
+        writer.Write((uint)GgufValueType.Array);
+        if (list.Count == 0)
+        {
+            writer.Write((uint)GgufValueType.String);
+            writer.Write((ulong)0);
+            return;
+        }
+
+        var first = list[0];
+        GgufValueType elemType = first switch
+        {
+            byte => GgufValueType.Uint8,
+            int => GgufValueType.Int32,
+            uint => GgufValueType.Uint32,
+            float => GgufValueType.Float32,
+            bool => GgufValueType.Bool,
+            string => GgufValueType.String,
+            _ => GgufValueType.String
+        };
+
+        writer.Write((uint)elemType);
+        writer.Write((ulong)list.Count);
+
+        foreach (var item in list)
+        {
+            WriteGgufValueRaw(writer, item, elemType);
+        }
+    }
+
+    private static void WriteGgufValueRaw(BinaryWriter writer, object item, GgufValueType type)
+    {
+        switch (type)
+        {
+            case GgufValueType.String:
+                WriteGgufString(writer, item?.ToString() ?? "");
+                break;
+            case GgufValueType.Int32:
+                writer.Write(Convert.ToInt32(item));
+                break;
+            case GgufValueType.Uint32:
+                writer.Write(Convert.ToUInt32(item));
+                break;
+            case GgufValueType.Float32:
+                writer.Write(Convert.ToSingle(item));
+                break;
+            case GgufValueType.Bool:
+                writer.Write(Convert.ToBoolean(item) ? (byte)1 : (byte)0);
+                break;
+            default:
+                WriteGgufString(writer, item?.ToString() ?? "");
                 break;
         }
     }
