@@ -50,8 +50,8 @@ public class GgufWriter
             targetWriter.Write((byte)0);
         }
 
-        // 5. Fast streaming copy of raw tensor binary payload from source file
-        sourceFs.Seek(header.Tensors.Count > 0 ? (long)header.Tensors[0].Offset : currentPos, SeekOrigin.Begin);
+        // 5. Fast streaming copy of raw tensor binary payload from source file's DataOffset
+        sourceFs.Seek(header.DataOffset > 0 ? header.DataOffset : currentPos, SeekOrigin.Begin);
         sourceFs.CopyTo(targetFs);
 
         targetFs.Flush();
