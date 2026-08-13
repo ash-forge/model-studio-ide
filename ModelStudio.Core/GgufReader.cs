@@ -57,6 +57,7 @@ public class GgufHeader
     public uint Version { get; set; }
     public ulong TensorCount { get; set; }
     public ulong MetadataCount { get; set; }
+    public long DataOffset { get; set; }
     public Dictionary<string, object> Metadata { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<GgufTensorInfo> Tensors { get; } = new();
 }
@@ -141,6 +142,14 @@ public class GgufReader
             tensor.Offset = reader.ReadUInt64();
             header.Tensors.Add(tensor);
         }
+
+        long currentPos = fs.Position;
+        long alignment = 32;
+        if (header.Metadata.TryGetValue("general.alignment", out var alignObj))
+        {
+            alignment = Convert.ToInt64(alignObj);
+        }
+        header.DataOffset = (currentPos + (alignment - 1)) & ~(alignment - 1);
 
         return header;
     }

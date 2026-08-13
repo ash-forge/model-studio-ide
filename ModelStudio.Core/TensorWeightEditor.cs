@@ -14,12 +14,15 @@ public class TensorWeightEditor
 {
     public static TensorWeightSample[] ReadTensorSampleValues(string filePath, GgufTensorInfo tensor, int count = 100)
     {
-        if (!File.Exists(filePath) || tensor.Offset == 0) return Array.Empty<TensorWeightSample>();
+        if (!File.Exists(filePath)) return Array.Empty<TensorWeightSample>();
 
         try
         {
+            var header = GgufReader.ParseHeader(filePath);
+            long absoluteOffset = header.DataOffset + (long)tensor.Offset;
+
             using var mmf = MemoryMappedFile.CreateFromFile(filePath, FileMode.Open, null, 0, MemoryMappedFileAccess.Read);
-            using var accessor = mmf.CreateViewAccessor((long)tensor.Offset, Math.Min((long)tensor.TotalElements * 4, 1024 * 1024), MemoryMappedFileAccess.Read);
+            using var accessor = mmf.CreateViewAccessor(absoluteOffset, Math.Min((long)tensor.TotalElements * 4, 1024 * 1024), MemoryMappedFileAccess.Read);
 
             int sampleCount = (int)Math.Min((ulong)count, tensor.TotalElements);
             var samples = new TensorWeightSample[sampleCount];
