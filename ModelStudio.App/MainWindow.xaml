@@ -204,6 +204,20 @@
                             </StackPanel>
                         </Button>
 
+                        <Button x:Name="BtnSanitizeGguf" Click="BtnSanitizeGguf_Click" Margin="8,0,0,0"
+                                Background="#8B5CF6" Foreground="White" FontWeight="Bold" Padding="14,8" BorderThickness="0" Cursor="Hand">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🛡️ Sanitize GGUF Metadata" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Button>
+
                         <TextBlock x:Name="TxtModelTitle" Text="No Model Loaded" FontSize="17" FontWeight="Bold" Foreground="#EC4899" Margin="16,0,0,0" VerticalAlignment="Center"/>
                         <Border x:Name="BadgeArch" Background="{DynamicResource BrushBorder}" CornerRadius="4" Padding="8,4" Margin="10,0,0,0" Visibility="Collapsed" VerticalAlignment="Center">
                             <TextBlock x:Name="TxtArchName" Text="gemma4" FontSize="12" Foreground="{DynamicResource BrushSecondaryAccent}" FontWeight="Bold"/>

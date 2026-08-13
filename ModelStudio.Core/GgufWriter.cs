@@ -57,6 +57,45 @@ public class GgufWriter
         targetFs.Flush();
     }
 
+    public static (bool success, string message) SanitizeAndExportGguf(string sourceFilePath, string targetFilePath)
+    {
+        try
+        {
+            var header = GgufReader.ParseHeader(sourceFilePath);
+
+            // Sanitize Token & Array Metadata Types
+            var sanitizedMetadata = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (key, val) in header.Metadata)
+            {
+                if ((key.Contains("tokens", StringComparison.OrdinalIgnoreCase) ||
+                     key.Contains("merges", StringComparison.OrdinalIgnoreCase) ||
+                     key.Contains("scores", StringComparison.OrdinalIgnoreCase)) && val is string strVal)
+                {
+                    // Convert corrupted string representations back to List<object>
+                    var items = new List<object>(strVal.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries));
+                    sanitizedMetadata[key] = items;
+                }
+                else
+                {
+                    sanitizedMetadata[key] = val;
+                }
+            }
+
+            header.Metadata.Clear();
+            foreach (var (k, v) in sanitizedMetadata)
+            {
+                header.Metadata[k] = v;
+            }
+
+            SaveHeaderAndMetadata(sourceFilePath, targetFilePath, header);
+            return (true, $"Sanitized & exported model successfully to {targetFilePath}!");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Sanitization failed: {ex.Message}");
+        }
+    }
+
     private static void WriteGgufString(BinaryWriter writer, string str)
     {
         var bytes = Encoding.UTF8.GetBytes(str);

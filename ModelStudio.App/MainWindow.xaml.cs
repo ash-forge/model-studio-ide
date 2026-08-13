@@ -601,6 +601,42 @@ public partial class MainWindow : Window
         }
     }
 
+    private void BtnSanitizeGguf_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_currentFilePath) || !File.Exists(_currentFilePath))
+        {
+            MessageBox.Show("Please load a GGUF model file first.", "No Model Loaded", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var saveDialog = new SaveFileDialog
+        {
+            Title = "Sanitize & Export Compliant GGUF Model",
+            Filter = "GGUF Model Files (*.gguf)|*.gguf",
+            FileName = Path.GetFileNameWithoutExtension(_currentFilePath) + "-Sanitized.gguf"
+        };
+
+        if (saveDialog.ShowDialog() == true)
+        {
+            TxtStatus.Text = "Sanitizing metadata & exporting compliant GGUF model...";
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+
+            var (success, msg) = GgufWriter.SanitizeAndExportGguf(_currentFilePath, saveDialog.FileName);
+
+            sw.Stop();
+            if (success)
+            {
+                MessageBox.Show($"Successfully sanitized & exported model GGUF headers!\n\n{msg}\nTime: {sw.ElapsedMilliseconds} ms", "Sanitize Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                TxtStatus.Text = $"Sanitized model in {sw.ElapsedMilliseconds} ms";
+            }
+            else
+            {
+                MessageBox.Show($"Sanitization failed:\n\n{msg}", "Sanitize Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                TxtStatus.Text = "Sanitize failed.";
+            }
+        }
+    }
+
     private async void BtnPublishHf_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrEmpty(_currentFilePath) || !File.Exists(_currentFilePath))
