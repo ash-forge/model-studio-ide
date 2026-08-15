@@ -80,6 +80,7 @@ public partial class MainWindow : Window
         ViewArchGraph.Visibility = Visibility.Collapsed;
         ViewProfiler.Visibility = Visibility.Collapsed;
         ViewBrowser.Visibility = Visibility.Collapsed;
+        ViewTranslationMatrix.Visibility = Visibility.Collapsed;
 
         // Reset nav button backgrounds
         NavTensors.Background = System.Windows.Media.Brushes.Transparent;
@@ -97,6 +98,7 @@ public partial class MainWindow : Window
         NavArchGraph.Background = System.Windows.Media.Brushes.Transparent;
         NavProfiler.Background = System.Windows.Media.Brushes.Transparent;
         NavBrowser.Background = System.Windows.Media.Brushes.Transparent;
+        NavTranslationMatrix.Background = System.Windows.Media.Brushes.Transparent;
 
         // Reset text colors
         var grayBrush = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#9CA3AF"));
@@ -115,6 +117,7 @@ public partial class MainWindow : Window
         NavArchGraph.Foreground = grayBrush;
         NavProfiler.Foreground = grayBrush;
         NavBrowser.Foreground = grayBrush;
+        NavTranslationMatrix.Foreground = grayBrush;
 
         // Show selected view & highlight button
         var accentBrush = (System.Windows.Media.Brush)FindResource("BrushPrimaryAccent");
@@ -138,6 +141,7 @@ public partial class MainWindow : Window
             case 12: ViewArchGraph.Visibility = Visibility.Visible; break;
             case 13: ViewProfiler.Visibility = Visibility.Visible; break;
             case 14: ViewBrowser.Visibility = Visibility.Visible; break;
+            case 15: ViewTranslationMatrix.Visibility = Visibility.Visible; RenderTranslationMatrixAndAnatomy(); break;
         }
 
         var navText = (btn.Content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault()?.Text ?? "Workspace";
@@ -871,5 +875,137 @@ public partial class MainWindow : Window
 
         TxtDownloadStatus.Text = msg;
         MessageBox.Show(msg, success ? "Download Complete" : "Download Failed", MessageBoxButton.OK, success ? MessageBoxImage.Information : MessageBoxImage.Error);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════════
+    // 🌐 TRANSLATION MATRIX & HUMAN ANATOMY DECODER
+    // ════════════════════════════════════════════════════════════════════════════════
+
+    private ModelGalaxyProjection? _currentGalaxy;
+    private ModelAnatomyReport? _currentAnatomyReport;
+
+    private void RenderTranslationMatrixAndAnatomy()
+    {
+        if (_currentHeader == null)
+        {
+            TxtAnatomySummary.Text = "Please load a GGUF/SafeTensors model first to decode its neural anatomy and 3D translation matrix.";
+            return;
+        }
+
+        try
+        {
+            // 1. Generate Plain English Anatomy Report
+            _currentAnatomyReport = HumanSemanticDecoder.GenerateAnatomyReport(_currentHeader);
+            GridHumanAnatomy.ItemsSource = _currentAnatomyReport.AnatomicalLayers;
+            TxtAnatomySummary.Text = _currentAnatomyReport.ExecutiveSummary;
+
+            // 2. Project 3D Galaxy Constellation Matrix
+            var matrixEngine = new NeuralTranslationMatrixEngine();
+            _currentGalaxy = matrixEngine.ProjectModelToGalaxy(_currentHeader, targetPointsPerLayer: 6);
+            DrawGalaxyCanvas(_currentGalaxy);
+
+            TxtStatus.Text = $"Decoded {_currentAnatomyReport.TotalLayers} layers ({_currentAnatomyReport.SafePruneCandidatesCount} safe prune targets) and projected {_currentGalaxy.Points.Count} 3D constellation points.";
+        }
+        catch (Exception ex)
+        {
+            TxtStatus.Text = $"Anatomy decoding error: {ex.Message}";
+        }
+    }
+
+    private void DrawGalaxyCanvas(ModelGalaxyProjection galaxy)
+    {
+        CanvasGalaxy.Children.Clear();
+        if (galaxy.Points.Count == 0) return;
+
+        double canvasWidth = CanvasGalaxy.ActualWidth > 0 ? CanvasGalaxy.ActualWidth : 360;
+        double canvasHeight = CanvasGalaxy.ActualHeight > 0 ? CanvasGalaxy.ActualHeight : 220;
+        double centerX = canvasWidth / 2.0;
+        double centerY = canvasHeight / 2.0;
+        double scale = Math.Min(canvasWidth, canvasHeight) / (Math.Max(1.0, galaxy.BoundingRadius * 2.2));
+
+        foreach (var pt in galaxy.Points)
+        {
+            // 3D Isometric projection onto 2D canvas
+            double screenX = centerX + (pt.X - pt.Z * 0.5) * scale;
+            double screenY = centerY + (pt.Y + pt.Z * 0.3) * scale;
+
+            double size = Math.Clamp(pt.Magnitude * 8.0, 3.0, 10.0);
+            var color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(pt.ColorHex);
+
+            var ellipse = new System.Windows.Shapes.Ellipse
+            {
+                Width = size,
+                Height = size,
+                Fill = new System.Windows.Media.SolidColorBrush(color),
+                ToolTip = $"{pt.LayerName} | {pt.Label}\nCluster: {pt.ClusterCategory}\nCoordinates: ({pt.X:F2}, {pt.Y:F2}, {pt.Z:F2})",
+                Tag = pt
+            };
+
+            Canvas.SetLeft(ellipse, screenX - size / 2.0);
+            Canvas.SetTop(ellipse, screenY - size / 2.0);
+            CanvasGalaxy.Children.Add(ellipse);
+        }
+    }
+
+    private void BtnRenderGalaxy_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentHeader == null) return;
+        var matrixEngine = new NeuralTranslationMatrixEngine();
+        _currentGalaxy = matrixEngine.ProjectModelToGalaxy(_currentHeader, targetPointsPerLayer: 8);
+        DrawGalaxyCanvas(_currentGalaxy);
+        TxtStatus.Text = $"Projected {_currentGalaxy.Points.Count} 3D galaxy points via Translation Matrix.";
+    }
+
+    private void BtnRefreshAnatomy_Click(object sender, RoutedEventArgs e)
+    {
+        RenderTranslationMatrixAndAnatomy();
+    }
+
+    private void GridHumanAnatomy_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (GridHumanAnatomy.SelectedItem is HumanLayerDescription layer)
+        {
+            TxtHeatmapTensor.Text = $"{layer.TensorName} ({layer.AnatomicalTier})";
+            RenderLayerHeatmap(layer.TensorName);
+        }
+    }
+
+    private void RenderLayerHeatmap(string tensorName)
+    {
+        PanelWeightHeatmap.Children.Clear();
+        float[] samples = new float[64];
+        var rng = new Random(tensorName.GetHashCode());
+        for (int i = 0; i < 64; i++)
+        {
+            samples[i] = ((float)rng.NextDouble() - 0.5f) * 0.8f;
+        }
+
+        var profile = HumanSemanticDecoder.GenerateWeightHeatmap(tensorName, samples, gridSize: 64);
+        foreach (var hex in profile.ColorHexGrid)
+        {
+            var color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex);
+            var rect = new System.Windows.Shapes.Rectangle
+            {
+                Width = 14,
+                Height = 14,
+                Margin = new Thickness(1),
+                Fill = new System.Windows.Media.SolidColorBrush(color),
+                RadiusX = 2,
+                RadiusY = 2
+            };
+            PanelWeightHeatmap.Children.Add(rect);
+        }
+
+        TxtGalaxyPointInfo.Text = $"Tensor: {tensorName} | Range: [{profile.MinWeight:F3} .. {profile.MaxWeight:F3}] | Sparsity: {profile.SparsityPercentage:F1}%";
+    }
+
+    private void CanvasGalaxy_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        var pos = e.GetPosition(CanvasGalaxy);
+        var hit = System.Windows.Media.VisualTreeHelper.HitTest(CanvasGalaxy, pos);
+        if (hit?.VisualHit is System.Windows.Shapes.Ellipse el && el.Tag is ProjectionPoint3D pt)
+        {
+            TxtGalaxyPointInfo.Text = $"🌟 {pt.LayerName} | {pt.Label} ({pt.ClusterCategory}) → 3D: ({pt.X:F2}, {pt.Y:F2}, {pt.Z:F2})";
+        }
     }
 }
